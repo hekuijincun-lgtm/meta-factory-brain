@@ -1,0 +1,6 @@
+name = "meta-factory-brain"
+main = "src/index.ts"
+compatibility_date = "2024-04-01"
+
+[ai]
+binding = "AI"

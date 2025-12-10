@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🤖 メタ工場 God Mode ダッシュボード</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6; /* Tailwind gray-100 */
+        }
+        .scrollable-content {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+    
+    <!-- 設定 & コントロールパネル -->
+    <div class="max-w-6xl mx-auto bg-white shadow-xl rounded-xl p-6 mb-8">
+        <h1 class="text-3xl font-extrabold text-gray-900 mb-2 flex items-center">
+            <span class="mr-2">🏭</span> メタ工場 God Mode ダッシュボード
+        </h1>
+        <p class="text-sm text-gray-500 mb-6">現在の工場URL: <span id="factory-url" class="font-mono text-xs bg-gray-100 p-1 rounded"></span></p>
+
+        <!-- 手動スキャンコントロール -->
+        <div class="p-4 bg-yellow-50 rounded-lg border border-yellow-200 shadow-inner">
+            <h2 class="text-xl font-semibold text-yellow-800 mb-3">🔍 手動ターゲットスキャン</h2>
+            <p class="text-sm text-gray-600 mb-3">新しい競合のURLを入力し、即座に弱点分析を行います。</p>
+            <div class="flex flex-col md:flex-row gap-3">
+                <input type="url" id="scan-url" placeholder="例: https://example.com/competitor-lp" class="flex-grow p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition shadow-sm" required>
+                <button onclick="triggerScan()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-200 whitespace-nowrap" id="scan-button">
+                    スキャン＆DB保存
+                </button>
+            </div>
+            <p id="scan-message" class="mt-3 text-sm text-gray-700 hidden"></p>
+        </div>
+    </div>
+
+    <!-- アイデア一覧テーブル -->
+    <div class="max-w-6xl mx-auto bg-white shadow-xl rounded-xl p-6">
+        <h2 class="text-2xl font-bold text-gray-900 mb-4">🧠 アイデア（資産）一覧</h2>
+        
+        <div class="overflow-x-auto scrollable-content">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50 sticky top-0">
+                    <tr>
+                        <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                        <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">競合/URL</th>
+                        <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">弱点（ビジネスチャンス）</th>
+                        <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">LPステータス</th>
+                        <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">アクション</th>
+                    </tr>
+                </thead>
+                <tbody id="ideas-table-body" class="bg-white divide-y divide-gray-200">
+                    <!-- データがここに挿入されます -->
+                    <tr>
+                        <td colspan="5" class="py-4 text-center text-gray-500">データをロード中です...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        <p class="text-right text-xs text-gray-400 mt-4">最終更新: <span id="last-updated">--</span></p>
+    </div>
+
+    <script>
+        // ★★★ メタ工場のベースURLをここに設定 ★★★
+        const FACTORY_BASE_URL = "https://meta-factory-brain.hekuijincun.workers.dev";
+        document.getElementById('factory-url').textContent = FACTORY_BASE_URL;
+
+        /**
+         * APIからアイデアリストを取得する
+         */
+        async function fetchIdeas() {
+            const tableBody = document.getElementById('ideas-table-body');
+            tableBody.innerHTML = `<tr><td colspan="5" class="py-4 text-center text-blue-500">最新データを取得中...</td></tr>`;
+            
+            try {
+                const response = await fetch(`${FACTORY_BASE_URL}/ideas`);
+
+                if (!response.ok) {
+                    throw new Error(`API接続エラー (Status: ${response.status} - CORSブロックの可能性)`);
+                }
+                
+                const ideas = await response.json();
+                
+                if (ideas && ideas.length > 0) {
+                    renderTable(ideas);
+                } else {
+                    tableBody.innerHTML = `<tr><td colspan="5" class="py-4 text-center text-gray-500">データがありません。手動スキャンで最初のアイデアを作成してください。</td></tr>`;
+                }
+
+                document.getElementById('last-updated').textContent = new Date().toLocaleTimeString();
+
+            } catch (error) {
+                console.error('Error fetching ideas:', error);
+                tableBody.innerHTML = `<tr><td colspan="5" class="py-4 text-center text-red-500">
+                    ❌ データ取得中にエラーが発生しました。<br>
+                    Worker側のCORS設定が完了しているか、コンソールを確認してください。
+                    </td></tr>`;
+            }
+        }
+
+        /**
+         * テーブルにデータをレンダリングする
+         */
+        function renderTable(ideas) {
+            const tableBody = document.getElementById('ideas-table-body');
+            tableBody.innerHTML = ''; // クリア
+
+            ideas.forEach(idea => {
+                const weaknesses = JSON.parse(idea.weaknesses || '[]');
+                
+                // LP生成済みかどうか
+                const isLpGenerated = idea.lp_html !== null;
+                const statusClass = isLpGenerated ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
+                const statusText = isLpGenerated ? '✅ 公開準備OK' : '❌ 未生成';
+
+                const row = `
+                    <tr id="row-${idea.id}">
+                        <td class="px-3 py-3 whitespace-nowrap text-sm font-medium text-gray-900">${idea.id}</td>
+                        <td class="px-3 py-3 whitespace-nowrap text-sm text-gray-500">
+                            <span class="font-semibold text-gray-800">${idea.competitor_name}</span><br>
+                            <span class="text-xs text-blue-500 truncate block">${idea.url}</span>
+                        </td>
+                        <td class="px-3 py-3 text-sm text-gray-700 max-w-sm">
+                            <ul class="list-disc list-inside text-xs space-y-0.5">
+                                ${weaknesses.map(w => `<li class="truncate">${w}</li>`).join('')}
+                            </ul>
+                        </td>
+                        <td class="px-3 py-3 whitespace-nowrap">
+                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusClass}">
+                                ${statusText}
+                            </span>
+                        </td>
+                        <td class="px-3 py-3 whitespace-nowrap text-sm font-medium space-x-2">
+                            ${isLpGenerated 
+                                ? `<a href="${FACTORY_BASE_URL}/view/${idea.id}" target="_blank" class="text-indigo-600 hover:text-indigo-900 text-xs font-semibold p-2 rounded-lg bg-indigo-50 hover:bg-indigo-100 transition shadow-sm">LP表示</a>`
+                                : `<button onclick="generateLp(${idea.id})" class="text-yellow-700 hover:text-yellow-900 text-xs font-semibold p-2 rounded-lg bg-yellow-100 hover:bg-yellow-200 transition shadow-sm" id="gen-btn-${idea.id}">LP生成</button>`
+                            }
+                        </td>
+                    </tr>
+                `;
+                tableBody.insertAdjacentHTML('beforeend', row);
+            });
+        }
+
+        /**
+         * LP生成APIを叩く
+         */
+        async function generateLp(id) {
+            const button = document.getElementById(`gen-btn-${id}`);
+            const originalText = button.textContent;
+            button.disabled = true;
+            button.textContent = '生成中...';
+            button.classList.add('animate-pulse');
+
+            try {
+                const response = await fetch(`${FACTORY_BASE_URL}/generate-lp?id=${id}`);
+                const result = await response.json();
+
+                if (response.ok) {
+                    alert(`LP生成が完了しました！Stripeリンクも自動で埋め込まれました。`);
+                    fetchIdeas(); // テーブルを更新
+                } else {
+                    alert(`LP生成に失敗しました: ${result.details || result.error}`);
+                }
+            } catch (error) {
+                console.error('LP generation error:', error);
+                alert('LP生成中に致命的なエラーが発生しました。コンソールを確認してください。');
+            } finally {
+                button.disabled = false;
+                button.textContent = originalText;
+                button.classList.remove('animate-pulse');
+            }
+        }
+
+        /**
+         * 手動スキャンAPIを叩く
+         */
+        async function triggerScan() {
+            const urlInput = document.getElementById('scan-url');
+            const scanButton = document.getElementById('scan-button');
+            const messageDiv = document.getElementById('scan-message');
+            const url = urlInput.value;
+
+            if (!url) {
+                alert('URLを入力してください。');
+                return;
+            }
+
+            scanButton.disabled = true;
+            scanButton.textContent = '分析中...';
+            scanButton.classList.add('animate-pulse');
+            messageDiv.classList.remove('hidden', 'text-green-600', 'text-red-600');
+            messageDiv.textContent = 'AIが弱点分析中です...';
+
+            try {
+                const response = await fetch(`${FACTORY_BASE_URL}/scan?url=${encodeURIComponent(url)}`);
+                const result = await response.json();
+
+                if (response.ok) {
+                    messageDiv.textContent = `✅ 分析が完了し、ID ${result.newId} でDBに保存されました。`;
+                    messageDiv.classList.replace('text-gray-700', 'text-green-600');
+                    urlInput.value = '';
+                    fetchIdeas(); // テーブルを更新
+                } else {
+                    messageDiv.textContent = `❌ スキャン失敗: ${result.details || result.error}`;
+                    messageDiv.classList.replace('text-gray-700', 'text-red-600');
+                }
+            } catch (error) {
+                console.error('Scan error:', error);
+                messageDiv.textContent = `❌ ネットワークエラーが発生しました。コンソールを確認してください。`;
+                messageDiv.classList.replace('text-gray-700', 'text-red-600');
+            } finally {
+                scanButton.disabled = false;
+                scanButton.textContent = 'スキャン＆DB保存';
+                scanButton.classList.remove('animate-pulse');
+            }
+        }
+
+        // 起動時にデータをロード
+        window.onload = fetchIdeas;
+    </script>
+</body>
+</html>
