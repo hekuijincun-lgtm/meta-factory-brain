@@ -38,26 +38,30 @@ const FACTORY_DASHBOARD_HTML = `
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>🤖 メタ工場 God Mode ダッシュボード</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
+        .scrollable-content { max-height: 400px; overflow-y: auto; }
+    </style>
 </head>
-<body class="p-4 md:p-8 bg-gray-100 font-sans">
+<body class="p-4 md:p-8">
     <div class="max-w-6xl mx-auto bg-white shadow-xl rounded-xl p-6 mb-8">
-        <h1 class="text-3xl font-extrabold text-gray-900 mb-2">🏭 メタ工場 God Mode</h1>
-        <p class="text-sm text-gray-500 mb-6">Current: <span id="factory-url" class="font-mono bg-gray-200 p-1 rounded">...</span></p>
-        <div class="p-4 bg-yellow-50 rounded-lg border border-yellow-200">
-            <h2 class="text-lg font-bold text-yellow-800 mb-2">🔍 手動スキャン</h2>
-            <div class="flex gap-2">
-                <input type="url" id="scan-url" placeholder="競合URL (例: https://example.com)" class="flex-grow p-2 border rounded">
-                <button onclick="triggerScan()" id="scan-button" class="bg-blue-600 text-white font-bold py-2 px-6 rounded hover:bg-blue-700">スキャン</button>
+        <h1 class="text-3xl font-extrabold text-gray-900 mb-2 flex items-center"><span class="mr-2">🏭</span> メタ工場 God Mode ダッシュボード</h1>
+        <p class="text-sm text-gray-500 mb-6">現在の工場URL: <span id="factory-url" class="font-mono text-xs bg-gray-100 p-1 rounded"></span></p>
+        <div class="p-4 bg-yellow-50 rounded-lg border border-yellow-200 shadow-inner">
+            <h2 class="text-xl font-semibold text-yellow-800 mb-3">🔍 手動ターゲットスキャン</h2>
+            <div class="flex flex-col md:flex-row gap-3">
+                <input type="url" id="scan-url" placeholder="例: https://example.com" class="flex-grow p-3 border rounded-lg" required>
+                <button onclick="triggerScan()" class="bg-blue-600 text-white font-bold py-3 px-6 rounded-lg" id="scan-button">スキャン＆DB保存</button>
             </div>
-            <p id="scan-message" class="mt-2 text-sm text-gray-600"></p>
+            <p id="scan-message" class="mt-3 text-sm text-gray-700 hidden"></p>
         </div>
     </div>
-
     <div class="max-w-6xl mx-auto bg-white shadow-xl rounded-xl p-6">
-        <h2 class="text-2xl font-bold text-gray-900 mb-4">🧠 アイデア一覧</h2>
-        <div class="overflow-x-auto">
+        <h2 class="text-2xl font-bold text-gray-900 mb-4">🧠 アイデア（資産）一覧</h2>
+        <div class="overflow-x-auto scrollable-content">
             <table class="min-w-full divide-y divide-gray-200">
-                <thead class="bg-gray-50">
+                <thead class="bg-gray-50 sticky top-0">
                     <tr>
                         <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
                         <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase">競合/URL</th>
@@ -69,91 +73,94 @@ const FACTORY_DASHBOARD_HTML = `
                 <tbody id="ideas-table-body" class="bg-white divide-y divide-gray-200"></tbody>
             </table>
         </div>
+        <p class="text-right text-xs text-gray-400 mt-4">最終更新: <span id="last-updated">--</span></p>
     </div>
-
     <script>
         const BASE_URL = window.location.origin;
         document.getElementById('factory-url').textContent = BASE_URL;
 
         async function fetchIdeas() {
-            const tbody = document.getElementById('ideas-table-body');
-            tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center">Loading...</td></tr>';
+            const tableBody = document.getElementById('ideas-table-body');
+            tableBody.innerHTML = '<tr><td colspan="5" class="py-4 text-center text-blue-500">最新データを取得中...</td></tr>';
             try {
-                const res = await fetch(\`\${BASE_URL}/ideas\`);
-                if (!res.ok) throw new Error(res.statusText);
-                const ideas = await res.json();
+                const response = await fetch(BASE_URL + '/ideas');
+                if (!response.ok) throw new Error('API接続エラー');
+                const ideas = await response.json();
                 renderTable(ideas);
-            } catch (e) {
-                tbody.innerHTML = \`<tr><td colspan="5" class="p-4 text-center text-red-500">Error: \${e.message}</td></tr>\`;
+                document.getElementById('last-updated').textContent = new Date().toLocaleTimeString();
+            } catch (error) {
+                console.error(error);
+                tableBody.innerHTML = '<tr><td colspan="5" class="py-4 text-center text-red-500">❌ データ取得エラー: ' + error.message + '</td></tr>';
             }
         }
 
         function renderTable(ideas) {
-            const tbody = document.getElementById('ideas-table-body');
-            tbody.innerHTML = '';
+            const tableBody = document.getElementById('ideas-table-body');
+            tableBody.innerHTML = '';
             if (ideas.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center">データなし</td></tr>';
-                return;
+                 tableBody.innerHTML = '<tr><td colspan="5" class="py-4 text-center text-gray-500">データがありません</td></tr>';
+                 return;
             }
             ideas.forEach(idea => {
                 const weaknesses = JSON.parse(idea.weaknesses || '[]');
-                const hasLP = !!idea.lp_html;
+                const isLpGenerated = !!idea.lp_html;
+                const statusClass = isLpGenerated ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
+                const statusText = isLpGenerated ? '✅ 公開準備OK' : '❌ 未生成';
                 const row = \`
                     <tr>
-                        <td class="px-3 py-3 text-sm">\${idea.id}</td>
-                        <td class="px-3 py-3 text-sm">
+                        <td class="px-3 py-3 text-sm font-medium">\${idea.id}</td>
+                        <td class="px-3 py-3 text-sm text-gray-500">
                             <div class="font-bold">\${idea.competitor_name}</div>
                             <div class="text-xs text-blue-500 truncate w-32">\${idea.url}</div>
                         </td>
-                        <td class="px-3 py-3 text-xs text-gray-600">
-                            <ul class="list-disc pl-4">\${weaknesses.map(w => \`<li>\${w}</li>\`).join('')}</ul>
+                        <td class="px-3 py-3 text-sm text-gray-700 max-w-sm">
+                            <ul class="list-disc list-inside text-xs">\${weaknesses.map(w => \`<li class="truncate">\${w}</li>\`).join('')}</ul>
                         </td>
-                        <td class="px-3 py-3 text-sm">
-                            <span class="px-2 py-1 rounded text-xs \${hasLP ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">
-                                \${hasLP ? '公開中' : '未生成'}
-                            </span>
-                        </td>
-                        <td class="px-3 py-3 text-sm">
-                            \${hasLP 
-                                ? \`<a href="\${BASE_URL}/view/\${idea.id}" target="_blank" class="text-blue-600 hover:underline">表示</a>\`
-                                : \`<button onclick="generateLp(\${idea.id})" class="text-white bg-green-500 px-2 py-1 rounded text-xs hover:bg-green-600">生成</button>\`
+                        <td class="px-3 py-3"><span class="px-2 py-1 rounded-full text-xs font-semibold \${statusClass}">\${statusText}</span></td>
+                        <td class="px-3 py-3 text-sm font-medium">
+                            \${isLpGenerated 
+                                ? \`<a href="\${BASE_URL}/view/\${idea.id}" target="_blank" class="text-indigo-600 hover:underline">LP表示</a>\`
+                                : \`<button onclick="generateLp(\${idea.id})" class="text-white bg-green-600 hover:bg-green-700 px-3 py-1 rounded text-xs">生成</button>\`
                             }
                         </td>
-                    </tr>
-                \`;
-                tbody.insertAdjacentHTML('beforeend', row);
+                    </tr>\`;
+                tableBody.insertAdjacentHTML('beforeend', row);
             });
         }
 
         async function generateLp(id) {
             if(!confirm('LPを生成しますか？')) return;
+            alert('生成を開始しました。完了までお待ちください...');
             try {
-                alert('生成を開始しました。完了までお待ちください...');
-                const res = await fetch(\`\${BASE_URL}/generate-lp?id=\${id}\`);
+                const res = await fetch(BASE_URL + '/generate-lp?id=' + id);
                 const data = await res.json();
-                if(res.ok) { alert('完了！'); fetchIdeas(); }
-                else { alert('失敗: ' + (data.error || 'Unknown')); }
-            } catch(e) { alert('エラー: ' + e.message); }
+                if (res.ok) { alert('完了！'); fetchIdeas(); }
+                else { alert('失敗: ' + (data.details || data.error)); }
+            } catch (e) { alert('エラー: ' + e.message); }
         }
 
         async function triggerScan() {
             const url = document.getElementById('scan-url').value;
-            if(!url) return alert('URLを入力してください');
+            if (!url) return alert('URLを入力してください');
+            document.getElementById('scan-button').disabled = true;
+            document.getElementById('scan-message').classList.remove('hidden');
             document.getElementById('scan-message').textContent = '分析中...';
             try {
-                const res = await fetch(\`\${BASE_URL}/scan?url=\${encodeURIComponent(url)}\`);
+                const res = await fetch(BASE_URL + '/scan?url=' + encodeURIComponent(url));
                 const data = await res.json();
-                if(res.ok) {
+                if (res.ok) {
                     document.getElementById('scan-message').textContent = '完了！';
+                    document.getElementById('scan-url').value = '';
                     fetchIdeas();
                 } else {
-                    document.getElementById('scan-message').textContent = '失敗: ' + data.error;
+                    document.getElementById('scan-message').textContent = '失敗: ' + (data.details || data.error);
                 }
-            } catch(e) {
+            } catch (e) {
                 document.getElementById('scan-message').textContent = 'エラー: ' + e.message;
+            } finally {
+                document.getElementById('scan-button').disabled = false;
             }
         }
-
         window.onload = fetchIdeas;
     </script>
 </body>
@@ -193,13 +200,12 @@ app.get('/scan', async (c) => {
 
 app.get('/generate-lp', async (c) => {
   const id = c.req.query('id')
-  if (!id) return c.json({ error: 'ID required' }, 400)
+  if (!id) return c.json({ error: 'Idea ID required' }, 400)
   const idea: any = await c.env.DB.prepare('SELECT * FROM ideas WHERE id = ?').bind(id).first()
-  if (!idea) return c.json({ error: 'Not found' }, 404)
-  
+  if (!idea) return c.json({ error: 'Idea not found' }, 404)
   const weaknesses = JSON.parse(idea.weaknesses).join(', ')
   const competitor = idea.competitor_name
-  const productName = `Anti-${competitor} Tool`
+  const productName = `Solution for ${competitor} users`
 
   let paymentUrl = '#'
   try {
@@ -208,9 +214,9 @@ app.get('/generate-lp', async (c) => {
     const price = await stripe.prices.create({ product: product.id, unit_amount: 2900, currency: 'usd', recurring: { interval: 'month' } })
     const link = await stripe.paymentLinks.create({ line_items: [{ price: price.id, quantity: 1 }] })
     paymentUrl = link.url
-  } catch (e) { console.error('Stripe error', e) }
+  } catch (e) { console.error('Stripe Error:', e) }
 
-  const prompt = `Create a SaaS Landing Page (HTML) using Tailwind CSS for a tool that solves: "${weaknesses}". Competitor: ${competitor}. Price: $29/mo. IMPORTANT: Set all buy buttons href to "#PAYMENT_TARGET#". Return ONLY raw HTML.`
+  const prompt = `Create a Tailwind CSS LP (HTML) for SaaS solving: "${weaknesses}". Competitor: ${competitor}. Price: $29/mo. Button Link: #PAYMENT_TARGET#`
   const ai = new Ai(c.env.AI)
   const aiRes: any = await ai.run('@cf/meta/llama-3-8b-instruct', { messages: [{ role: 'user', content: prompt }] })
   let html = aiRes.response
@@ -220,15 +226,11 @@ app.get('/generate-lp', async (c) => {
   $('a, button').each((i, el) => {
       const t = $(el).text().toLowerCase()
       if(t.includes('buy') || t.includes('start') || t.includes('get')) {
-          if(el.tagName === 'button') {
-              $(el).replaceWith(`<a href="${paymentUrl}" class="${$(el).attr('class')}">${$(el).text()}</a>`)
-          } else {
-              $(el).attr('href', paymentUrl)
-          }
+          if(el.tagName === 'button') $(el).replaceWith(`<a href="${paymentUrl}" class="${$(el).attr('class')}">${$(el).text()}</a>`)
+          else $(el).attr('href', paymentUrl)
       }
   })
   const finalHtml = $.html().replace(/#PAYMENT_TARGET#/g, paymentUrl)
-  
   await c.env.DB.prepare('UPDATE ideas SET lp_html = ? WHERE id = ?').bind(finalHtml, id).run()
   return c.json({ message: 'LP Generated!', payment_url: paymentUrl, view_url: `${new URL(c.req.url).origin}/view/${id}` })
 })
@@ -246,19 +248,23 @@ app.get('/view/:id', async (c) => {
 })
 
 app.get('/discover', async (c) => {
-    // Discovery logic placeholder
-    return c.json({ message: 'Discovery endpoint active' })
+    return c.json({ message: 'Auto-discovery active' })
 })
 
-export default {
-    fetch: app.fetch,
-    async scheduled(event: any, env: Bindings, ctx: any) {
-        // Simple Cron Logic
-        const TARGETS = ['https://en.wikipedia.org/wiki/Notion_(app)', 'https://en.wikipedia.org/wiki/Jira'];
-        for (const url of TARGETS) {
-            try {
-                await app.request('/scan?url=' + encodeURIComponent(url), {}, env)
-            } catch(e) { console.error(e) }
-        }
+async function handleScheduled(env: Bindings) {
+    console.log('--- CRON START ---');
+    const TARGETS = ['https://en.wikipedia.org/wiki/Notion_(app)', 'https://en.wikipedia.org/wiki/Jira'];
+    for (const url of TARGETS) {
+        try {
+            await app.request('/scan?url=' + encodeURIComponent(url), {}, env)
+            console.log(`Scanned: ${url}`)
+        } catch(e) { console.error(e) }
     }
 }
+
+export default {
+    fetch: app.fetch, 
+    async scheduled(event: any, env: Bindings, ctx: any) {
+        ctx.waitUntil(handleScheduled(env));
+    },
+};
