@@ -273,10 +273,3 @@ export default {
 #### Step 2: デプロイ
 
 ファイルを保存したら、PowerShellに戻り、以下のコマンドを実行してください。
-
-```powershell
-# 1. 工場の奥へ移動
-Set-Location "C:\Users\mesom\meta-factory\apps\brain"
-
-# 2. Workerを再デプロイ
-npx wrangler deploy
