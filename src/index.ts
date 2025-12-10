@@ -29,7 +29,8 @@ app.use('*', async (c, next) => {
   return response;
 });
 
-// 🏭 管理ダッシュボード（HTML内蔵 - 手動コピペ用）
+// 🏭 管理ダッシュボード（HTML内蔵）
+// 注意: Scriptタグ内のテンプレートリテラルはバックスラッシュでエスケープしています
 const FACTORY_DASHBOARD_HTML = `
 <!DOCTYPE html>
 <html lang="ja">
@@ -114,7 +115,7 @@ const FACTORY_DASHBOARD_HTML = `
                             <div class="text-xs text-blue-500 truncate w-32">\${idea.url}</div>
                         </td>
                         <td class="px-3 py-3 text-sm text-gray-700 max-w-sm">
-                            <ul class="list-disc list-inside text-xs">\${weaknesses.map(w => \`<li class="truncate">\${w}</li>\`).join('')}</ul>
+                            <ul class="list-disc list-inside text-xs">\${weaknesses.map(w => \`<li>\${w}</li>\`).join('')}</ul>
                         </td>
                         <td class="px-3 py-3"><span class="px-2 py-1 rounded-full text-xs font-semibold \${statusClass}">\${statusText}</span></td>
                         <td class="px-3 py-3 text-sm font-medium">
@@ -268,8 +269,3 @@ export default {
         ctx.waitUntil(handleScheduled(env));
     },
 };
-```
-
-#### Step 2: デプロイ
-
-ファイルを保存したら、PowerShellに戻り、以下のコマンドを実行してください。
