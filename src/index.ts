@@ -29,7 +29,7 @@ app.use('*', async (c, next) => {
   return response;
 });
 
-// 🏭 管理ダッシュボード（HTML内蔵）
+// 🏭 管理ダッシュボード（HTML内蔵 - 手動コピペ用）
 const FACTORY_DASHBOARD_HTML = `
 <!DOCTYPE html>
 <html lang="ja">
@@ -268,3 +268,15 @@ export default {
         ctx.waitUntil(handleScheduled(env));
     },
 };
+```
+
+#### Step 2: デプロイ
+
+ファイルを保存したら、PowerShellに戻り、以下のコマンドを実行してください。
+
+```powershell
+# 1. 工場の奥へ移動
+Set-Location "C:\Users\mesom\meta-factory\apps\brain"
+
+# 2. Workerを再デプロイ
+npx wrangler deploy
